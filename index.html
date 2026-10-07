@@ -10,10 +10,8 @@
         h1 { color: #ffca28; margin-bottom: 10px; }
         p { color: #aaa; line-height: 1.6; }
         .note { font-size: 0.85em; color: #888; margin-top: 25px; }
-        esp-web-install-button { margin-top: 20px; }
+        esp-web-install-button { margin-top: 20px; display: block; min-height: 40px; }
     </style>
-    <!-- Carica lo script alternativo ufficiale senza vincoli di protezione rigidi -->
-    <script type="module" src="https://esm.run"></script>
 </head>
 <body>
     <div class="card">
@@ -21,9 +19,13 @@
         <p>Installa il firmware del tuo oscilloscopio direttamente sul Cheap Yellow Display senza installare alcun software.</p>
         <p><strong>Istruzioni:</strong> Collega il display al PC tramite cavo USB, clicca sul pulsante CONNECT qui sotto e seleziona la porta COM corretta.</p>
         
+        <!-- Elemento del pulsante -->
         <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
         
         <div class="note">Richiede un browser desktop compatibile come Google Chrome o Microsoft Edge.</div>
     </div>
+
+    <!-- Script fondamentale che attiva il funzionamento del pulsante -->
+    <script type="module" src="https://cloudflare.com"></script>
 </body>
 </html>
