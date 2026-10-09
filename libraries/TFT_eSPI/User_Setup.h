@@ -20,10 +20,21 @@
 
 // --- Display driver ---
 #define ILI9341_2_DRIVER     // Alternative ILI9341 driver (works with most CYDs)
-// Some newer CYD revisions ship with an ST7789 panel instead of ILI9341.
-// If your screen stays white, comment out the line above and uncomment these:
+
+// Some newer CYD revisions ship with an ST7789 panel instead of ILI9341
+// (typically the 2-USB-port boards). If the screen stays white or the colours
+// are wrong, comment out ILI9341_2_DRIVER above and uncomment these three:
 //   #define ST7789_DRIVER
 //   #define TFT_INVERSION_OFF
+//   #define TFT_RGB_ORDER TFT_BGR
+
+// --- Colour inversion (fixes a WHITE background instead of black) ---
+// If the whole screen looks inverted -- a WHITE background instead of black,
+// the green trace looking magenta/pink, etc. -- enable ONE of the two lines
+// below. Try TFT_INVERSION_ON first; if that makes it worse, swap to
+// TFT_INVERSION_OFF. Only ONE of the two may be enabled at a time.
+#define TFT_INVERSION_ON
+// #define TFT_INVERSION_OFF
 
 // --- Panel geometry (portrait native; we rotate in software) ---
 #define TFT_WIDTH  240
