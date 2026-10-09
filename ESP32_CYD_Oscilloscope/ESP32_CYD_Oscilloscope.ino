@@ -91,11 +91,10 @@
 // ---------------------------------------------------------------------
 // Colours
 // ---------------------------------------------------------------------
-#define COL_BG        0x0000   // black
+#define COL_BG        0x0000   // black  (screen + plot background)
 #define COL_GRID      0x4208   // dark grey
 #define COL_GRID_CTR  0x7BEF   // lighter grey for centre lines
 #define COL_TRACE     0x07E0   // green
-#define COL_TRACE_OLD 0x0000   // used to erase the previous trace
 #define COL_TEXT      0xFFFF   // white
 #define COL_ACCENT    0xFFE0   // yellow
 #define COL_EXT       0xF800   // red (external trigger)
@@ -399,14 +398,24 @@ void render() {
     yNew[i] = voltToY(v);
   }
 
-  // Erase previous trace
+  // 1) Erase the previous trace by painting it in the background colour.
+  //    This leaves small gaps wherever the old trace crossed a grid line...
   if (havePrev) {
     for (int i = 1; i < SAMPLES; i++) {
-      tft.drawLine(PLOT_X + i - 1, yPrev[i - 1], PLOT_X + i, yPrev[i], COL_TRACE_OLD);
+      tft.drawLine(PLOT_X + i - 1, yPrev[i - 1], PLOT_X + i, yPrev[i], COL_BG);
     }
   }
 
-  // Draw new trace
+  // 2) Clear the trigger-tag strip (removes any stale tag text) BEFORE the
+  //    grid is restored, so the strip never ends up with a hole in it.
+  tft.fillRect(PLOT_X, PLOT_Y, 150, 12, COL_BG);
+
+  // 3) ...so immediately redraw the grid lines to fill all those gaps back in.
+  //    The grid is therefore ALWAYS fully present and can never be wiped out
+  //    or "bleached" by the moving waveform.
+  drawGridLines();
+
+  // 4) Draw the new trace on top of the (now intact) grid.
   for (int i = 1; i < SAMPLES; i++) {
     tft.drawLine(PLOT_X + i - 1, yNew[i - 1], PLOT_X + i, yNew[i], COL_TRACE);
   }
@@ -414,6 +423,7 @@ void render() {
   memcpy(yPrev, yNew, sizeof(yNew));
   havePrev = true;
 
+  // 5) Draw the trigger tag on top (this no longer clears anything).
   drawTriggerMarker();
 }
 
@@ -421,13 +431,37 @@ void drawTriggerMarker() {
   // The on-screen level arrow only makes sense on the CH1 scale when
   // triggering on CH1. In EXT mode the level refers to the external signal,
   // so we show a red "EXT TRIG" tag with the level value instead.
-  tft.fillRect(PLOT_X, PLOT_Y, 150, 12, COL_BG);   // clear marker tag area
+  //
+  // NOTE: the tag strip is cleared at the start of render(), *before* the grid
+  // is redrawn, so nothing here erases the grid.
+  //
+  // The arrow lives just OUTSIDE the plot area (to the left of PLOT_X), so the
+  // grid redraw never touches it. We therefore remember where it was and erase
+  // it ourselves when it moves -- this keeps exactly ONE arrow on screen.
+  static int16_t prevMarkerY = -1;   // y of the CH1 arrow last drawn (-1 = none)
+
   if (!extTrig) {
     int16_t y = voltToY(trigLevelCh1);
+
+    // Erase the previous arrow (restoring the axis labels it covered) so the
+    // marker simply MOVES instead of leaving a trail behind it.
+    if (prevMarkerY >= 0 && prevMarkerY != y) {
+      tft.fillRect(PLOT_X - 9, prevMarkerY - 5, 9, 11, COL_BG);
+      drawAxisLabels();
+    }
+
     tft.fillTriangle(PLOT_X - 8, y, PLOT_X - 2, y - 4, PLOT_X - 2, y + 4, COL_ACCENT);
+    prevMarkerY = y;
   } else {
+    // EXT mode has no CH1 arrow: remove it if it was showing.
+    if (prevMarkerY >= 0) {
+      tft.fillRect(PLOT_X - 9, prevMarkerY - 5, 9, 11, COL_BG);
+      drawAxisLabels();
+      prevMarkerY = -1;
+    }
+
     tft.setTextDatum(TL_DATUM);
-    tft.setTextColor(COL_EXT, COL_BG);
+    tft.setTextColor(COL_EXT);   // transparent background: the grid stays visible
     char s[24];
     snprintf(s, sizeof(s), "EXT TRIG %.2fV", trigLevelExt);
     tft.drawString(s, PLOT_X + 2, PLOT_Y + 1, 1);
@@ -492,9 +526,10 @@ void drawTitle() {
   tft.drawString("CH1:GPIO35", 232, 6, 1);
 }
 
-void drawGrid() {
-  tft.fillRect(PLOT_X, PLOT_Y, PLOT_W, PLOT_H, COL_BG);
-
+// Draw ONLY the grid lines (no background fill). This is cheap enough to be
+// called on every frame, which is what keeps the grid permanently on screen
+// no matter where the sampled trace has travelled.
+void drawGridLines() {
   int16_t dx = PLOT_W / DIVS_H;
   int16_t dy = PLOT_H / DIVS_V;
 
@@ -508,8 +543,13 @@ void drawGrid() {
     uint16_t c = (i == DIVS_V / 2) ? COL_GRID_CTR : COL_GRID;
     tft.drawFastHLine(PLOT_X, y, PLOT_W, c);
   }
+}
 
-  // axis ticks on the left
+// Draw the vertical-scale labels down the left edge of the plot. Kept as a
+// separate function so the trigger marker can restore the labels it covers
+// when the level (and therefore the marker) moves.
+void drawAxisLabels() {
+  int16_t dy = PLOT_H / DIVS_V;
   tft.setTextDatum(MR_DATUM);
   tft.setTextColor(COL_TEXT, COL_BG);
   for (int i = 0; i <= DIVS_V; i++) {
@@ -519,6 +559,13 @@ void drawGrid() {
     dtostrf(v, 4, 1, lbl);
     tft.drawString(lbl, PLOT_X - 4, y, 1);
   }
+}
+
+void drawGrid() {
+  // Full redraw: clear the plot area, then lay the grid back down.
+  tft.fillRect(PLOT_X, PLOT_Y, PLOT_W, PLOT_H, COL_BG);
+  drawGridLines();
+  drawAxisLabels();
   havePrev = false;   // grid cleared the plot area
 }
 
